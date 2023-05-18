@@ -1,0 +1,394 @@
+from tkinter import *
+import datetime
+import collections
+import json
+from tkinter import messagebox
+import re
+
+def main():
+    program = HIPO()
+    program.window.title("HIPO Design Tool")
+    program.window.geometry("1500x800")
+    #program.window.state('zoomed')
+
+# Create Menu
+    Menu_option = Menu(program.window)
+    Project_option = Menu(Menu_option, tearoff=0)
+    Project_option.add_command(label='New')
+    Project_option.add_command(label='Open')
+    Project_option.add_separator()
+    Project_option.add_command(label='Save')
+    Project_option.add_command(label='SaveAs')
+    Project_option.add_separator()
+    Project_option.add_command(label='Exit', command = program.sayGoodbye)
+    Menu_option.add_cascade(label='Project', menu = Project_option)
+   
+    Compile_option = Menu(Menu_option, tearoff=0)
+    Compile_option.add_command(label='Show Grid', command = program.getInfo)
+    Menu_option.add_cascade(label='View', menu = Compile_option)
+    program.window.config(menu=Menu_option)
+
+    program.window.mainloop()
+   
+class Grid:  
+    global x, y, modeDict
+    x = 10
+    y = 10
+    modeDict = collections.defaultdict(dict)
+
+    def __init__(self):
+        modeDict = [[0 for _ in range(x)] for _ in range(y)]
+        #node = Node('Root')
+        #self.addNodeToGrid(node,0,0)
+       
+    def getNodeFromGrid(self, number):
+        a, b = self.createKeys(number)
+        print("get node from grid: " + number + "  >> " + a + " " + b)
+        x = int(a)
+        y = int(b)
+        node = modeDict[x][y]
+        return node
+   
+    def addNodeToGrid(self, node, widget=None):
+        a, b = self.createKeys(node.number)
+        logger.logMessage("Adding Node [" + node.name + "] to Grid")
+        #print("add node to grid: " + node.number + "  >> " + a + " " + b)
+        x = int(a)
+        y = int(b)
+        modeDict[x][y] = node
+       
+    def createKeys(self, number):
+        n = number.split(".")
+        if len(n) > 2:
+            lastN = len(number) - number.rfind(".")
+            key1 = number[0:len(number)-lastN]
+            key2 = number[len(number)-lastN:]
+            key2 = key2.replace(".","")
+        else:
+            key1 = str(n[0])
+            key2 = str(n[1])
+        return key1.replace(".",""), key2.replace(".","")
+       
+    def showGrid(self):
+        numOfNodes = 0
+        keysList1 = list(modeDict.keys())
+        jsonOut = "{\"nodes\": ["
+
+        for i in keysList1:
+            keyList2 = list(modeDict[i].keys())
+            for j in keyList2:
+                nn = modeDict[i][j]      
+                jsonStr = json.dumps(nn.__dict__, default=str, indent=3)
+                if numOfNodes > 0:
+                    jsonOut += "," + jsonStr
+                else:
+                    jsonOut += jsonStr
+                #nn.showNode()
+                numOfNodes = numOfNodes + 1
+        jsonOut += "]}"
+       
+        print(jsonOut)
+        print("size of dictionary: " + str(numOfNodes))
+       
+    #{"nodes": [
+    #           {"name": "fred","number": "0.0","parent": "None","children": ["1.0", "1.1"]},
+    #           {"name": "Joe","number": "1.0","parent": "None","children": ["1.1.0"]},
+    #           {"name": "Al","number": "2.0","parent": "None","children": []}
+    #         ]
+    #}          
+       
+   
+class Node:
+    def __init__(self, name, number="0.0", parent=None):
+        ts = datetime.datetime.now()
+        ct = ts.replace(microsecond=0)
+       
+        self.name = name
+        self.number = number
+        self.parent = parent
+        self.XPos = 0
+        self.YPos = 0
+        self.description = ""
+        self.dateCreated = str(ct)
+        self.children = []
+
+        if parent != None:
+            print(">>> " + parent)
+            parentNode = theGrid.getNodeFromGrid(parent)
+            parentNode.addChild(self.number)
+           
+    def addChild(self, node):
+        self.children.append(node)
+       
+    def showNode(self):
+        print("     Name:        " + self.name)
+        print("     Number:      " + self.number)
+        print("     Parent:      " + str(self.parent))
+        print("     XPos:        " + str(self.XPos))
+        print("     YPos:        " + str(self.YPos))
+        print("     DateCreated: " + str(self.dateCreated))
+        kids = ""
+        if len(self.children) > 0:
+            for kid in self.children:
+                kids = kids + str(kid) + ", "
+            kids = kids[0:len(kids)-2]
+            print("     Children:    [ " + kids + " ]")
+        else:
+            print("     Children:    [ ]")
+
+class InputDialog:
+    def __init__(self, parent, xPos, yPos, node):
+        global username, currentNode
+        currentNode = node
+        username = "input"
+       
+        nextIndex = self.findNodeIndex(currentNode)
+        print("Children: " + str(node.children) + " [" + str(nextIndex) + "]")
+       
+        top2 = self.top2 = Toplevel(parent, name="main", bd=10)
+        self.top2.geometry("+%d+%d" %(xPos-50,yPos-10))
+       
+        self.mySubmitButton = Button(top2, text="Submit",
+            command = lambda zText = "submit" : self.callBack(zText))
+        self.mySubmitButton.grid(row=4, column=2)
+       
+        self.myCancelButton = Button(top2, text="Cancel",
+            command = lambda zText = "cancel" : self.callBack(zText))
+        self.myCancelButton.grid(row=4, column=1)
+       
+        self.myNodeLabel = Label(top2, text='Index: ' + str(nextIndex))
+        self.myNodeLabel.grid(row=1, column=0)
+
+        self.myNodeLabel = Label(top2, text='Node Name: ')
+        self.myNodeLabel.grid(row=2, column=1)
+
+        self.myNodeNameBox = Entry(top2, width=18)
+        self.myNodeNameBox.grid(row=2, column=2)
+       
+        self.myDescLabel = Label(top2, text='Description: ')
+        self.myDescLabel.grid(row=3, column=1)
+
+        self.myNodeDescBox = Text(top2, width=20, height=5)
+        self.myNodeDescBox.grid(row=3, column=2)
+   
+    def callBack(self, textValue):
+        global username, currentNode
+        username = textValue
+        if textValue == "submit":
+            print("inputDialog " + textValue )
+            print ("Node name: " + currentNode.name)
+            print ("Entry box: " + self.myNodeNameBox.get())
+            print ("Text box:  " + self.myNodeDescBox.get("1.0",END))
+            if self.myNodeNameBox.get() == "":
+                messagebox.showwarning("Error", "Node Name Required but was not provided.  Add node will be ignored")
+        self.top2.destroy()
+       
+    def findNodeIndex(self, node):
+        if len(node.children) > 0:
+            node.children.sort()
+            newIndex = self.calcNextIndex(node.number, node.children[-1])
+        else:
+            newIndex = self.calcNextIndex(node.number, node.number)
+        return(str(newIndex))
+           
+    def calcNextIndex(self, key, number):
+        newNum = ""
+        nums = number.split(".")
+
+        if key == "0.0":
+            nums[0] = int(nums[0]) + 1
+        else:    
+            nums[-1] = int(nums[-1]) + 1
+         
+        values = range(len(nums))
+        for val in values:
+            newNum += str(nums[val]) + "."
+
+        return str(newNum[0:len(newNum)-1])
+           
+
+class PromptDialog:    
+    def __init__(self, parent, xPos, yPos, node):
+        global username, x, y, currentNode
+        username = "prompt"
+        x = xPos
+        y = yPos
+        currentNode = node
+        self.base = parent
+       
+        top = self.top = Toplevel(parent, name="prompt")
+        self.top.title("Options:")
+        hh = "100x75+" + str(xPos-50) + "+" + str(yPos)
+        self.top.geometry(hh)
+       
+        #self.top.geometry("+%d+%d" %(xPos-50,yPos))
+       
+        self.myNewButton = Label(top, text='Add Node', bd=0, anchor="w", relief= "solid", width=12)
+        self.myNewButton.pack()
+        self.myNewButton.bind("<1>",lambda event: self.callBack(event, textValue="add"))
+       
+        self.myEditButton = Label(top, text='Edit Node', bd=0, anchor="w", relief= "solid", width=12)
+        self.myEditButton.pack()
+        self.myEditButton.bind("<1>",lambda event: self.callBack(event, textValue="edit"))
+       
+        self.myDeleteButton = Label(top, text='Delete Node', bd=0, anchor="w", relief= "solid", width=12)
+        self.myDeleteButton.pack()
+        self.myDeleteButton.bind("<1>",lambda event: self.callBack(event, textValue="delete"))
+       
+        self.myNoneButton = Label(top, text='None', bd=0, anchor="w", relief= "solid", width=12)
+        self.myNoneButton.pack()
+        self.myNoneButton.bind("<1>",lambda event: self.callBack(event, textValue="none"))
+   
+    def callBack(self, event, textValue):
+        global username, x, y, currentNode
+        username = textValue
+        if textValue == "add":
+            myDialog = InputDialog(self.base, x, y, currentNode)
+            self.base.wait_window(myDialog.top2)
+        print("callback ==> ", textValue)
+        print("node name => ", currentNode.name)
+        self.top.destroy()
+       
+class HIPO:
+    firstNodeName = "Root Node"
+    firstNodeIndex = "0.0"
+   
+    def __init__(self):
+        self.counter = 1
+        self.window = Tk()
+       
+        widget = self.create_frames()
+        logger.setFrame(widget)
+       
+    def create_frames(self):
+        self.main = Frame(self.window, bg="gray", width=200, height=400)
+        self.main.pack(side="left", expand=TRUE, fill=Y, anchor="nw")
+        self.main.pack_propagate(False)
+       
+        self.console = Canvas(self.window, bg="cyan", width=800, height=100)
+        self.console.pack(side="bottom", fill=BOTH)
+        self.console.pack_propagate(False)
+       
+        self.drawing = Canvas(self.window, bg="lightblue", width=1500, height=400)
+        self.drawing.pack(side="left", fill=BOTH, expand=TRUE)
+        #self.drawing.bind('<Motion>', self.motion)
+   
+        self.txt = Listbox(self.console, bg="yellow")
+        self.txt.pack(side="bottom", fill=BOTH)
+       
+        self.add_button = Button(self.main, width=10, height=1, text="Add Node", command=self.addNodeToGrid)
+        self.add_button.pack(side="top", anchor="sw")
+       
+        return self.txt
+       
+    def motion(self, event):
+        x, y = event.x, event.y
+        print('{}, {}'.format(x, y))
+       
+    def showDialog(self, event):
+        number = event.widget.cget("text")
+        poo = re.search('[a-zA-Z]', number)
+        if poo != None:
+            handling_widget = event.widget
+            parent_of_handling_widget = handling_widget.master
+            parent_number = parent_of_handling_widget.cget("text")
+            poi = re.search('[a-zA-Z]', parent_number)
+            if poi == None:
+                number = parent_number
+       
+        thisNode = theGrid.getNodeFromGrid(number)
+        print("label text: " + thisNode.number + " " + thisNode.name)
+
+        promptDialog = PromptDialog(self.window, event.x_root - 50, event.y_root, thisNode)
+        self.window.wait_window(promptDialog.top)
+
+        print('Username: ', username,event.x_root, event.y_root)
+        #for attr in dir(event):
+       #    print (attr, '=>', getattr(event, attr))
+   
+    def addNodeToCanvas(self, name, parent, index):
+        print("drawing area width: " + str(self.drawing.cget("width")))
+        rootPosX = int(self.drawing.cget("width"))/2
+        rootPosY = 45
+       
+        if parent == None:
+            PosX = rootPosX
+            PosY = rootPosY
+        else:
+            if parent == "0.0" and index == "1.0":
+                PosX = rootPosX - 200
+                PosY = rootPosY + 130
+            if parent == "0.0" and index == "2.0":
+                PosX = rootPosX + 200
+                PosY = rootPosY + 130
+               
+        theNode = LabelFrame(self.drawing, text=index, bg="white", padx=10, pady=10)
+        #theNode.pack_propagate(False)
+        self.drawing.create_window(PosX,PosY,window=theNode)
+        theNode.bind("<Button-3>", self.getInfo)
+        theNode.bind("<Button-1>", self.showDialog)
+       
+       
+        msg1 = Label(theNode, text=name, height=3, width=12, wraplength=100, font=("Arial", 10))
+        msg1.grid(row=0, column=0)
+        msg1.bind("<Button-3>", self.getInfo)
+        msg1.bind("<Button-1>", self.showDialog)
+
+    def addNodeToGrid(self, name=firstNodeName, index=firstNodeIndex):
+        logger.logMessage("Adding Node to Grid")
+
+        newNode1 = Node(name,index)
+        theGrid.addNodeToGrid(newNode1)
+        self.addNodeToCanvas(newNode1.name, newNode1.parent, newNode1.number)
+
+        newNode2 = Node("Child 1 which is very special today","1.0",parent="0.0")
+        theGrid.addNodeToGrid(newNode2)
+        self.addNodeToCanvas(newNode2.name, newNode2.parent, newNode2.number)
+       
+        newNode3 = Node("Child 2 that was added late","2.0",parent="0.0")
+        theGrid.addNodeToGrid(newNode3)
+        self.addNodeToCanvas(newNode3.name, newNode3.parent, newNode3.number)
+       
+        self.drawing.create_line(400,90,
+                                 400,107,
+                                 200,107,
+                                 200,125,width=2)
+        self.drawing.create_line(400,90,
+                                 400,107,
+                                 600,107,
+                                 600,125,width=2)
+        #self.drawing.create_line(400,107,400,125,width=2)
+       
+        theGrid.addNodeToGrid(Node("Child 2 Node","3.0",parent="0.0"))
+        theGrid.addNodeToGrid(Node("Child 3 Node","1.1.1",parent="1.1"))
+        theGrid.addNodeToGrid(Node("Child 4 Node","1.1.2",parent="1.1"))
+        theGrid.addNodeToGrid(Node("Child 5 Node","1.1.2.1",parent="1.1.2"))
+       
+    def getInfo(self):
+        theGrid.showGrid()
+        self.drawing.delete('all')
+       
+    def sayGoodbye(self):
+        self.window.destroy()
+       
+class Logger:
+    def __init__(self):
+        self.msgId = 0
+       
+    def setFrame(self, frame):
+        print(">> setting frame in logger")
+        self.widget = frame
+        print(str(self.widget.cget("bg")))
+       
+    def logMessage(self, message):
+        ts = datetime.datetime.now()
+        ct = ts.replace(microsecond=0)
+        msg = "<" + str(ct) + "> " + message
+        self.widget.insert(self.msgId, msg)
+        self.msgId = self.msgId + 1
+
+logger = Logger()
+theGrid = Grid()
+       
+if __name__ == "__main__":
+    main()
